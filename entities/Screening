@@ -1,0 +1,44 @@
+{
+  "name": "Screening",
+  "type": "object",
+  "properties": {
+    "patient_id": {
+      "type": "string"
+    },
+    "date": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "in_progress",
+        "completed"
+      ]
+    },
+    "breath_data": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "elisa_data": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "results": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "risk_score": {
+      "type": "string",
+      "enum": [
+        "Low",
+        "Medium",
+        "High"
+      ]
+    }
+  },
+  "required": [
+    "patient_id",
+    "date"
+  ]
+}
