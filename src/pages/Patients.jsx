@@ -1,89 +1,314 @@
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
-import { createPageUrl } from '@/utils';
-import { Link } from 'react-router-dom';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Search, Plus, UserPlus } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { format } from 'date-fns';
+import React, { useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+
+const STORAGE_KEY = "viona_demo_db_v1";
+
+function loadDb() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { patients: [], screenings: [] };
+    const parsed = JSON.parse(raw);
+    return {
+      patients: Array.isArray(parsed.patients) ? parsed.patients : [],
+      screenings: Array.isArray(parsed.screenings) ? parsed.screenings : [],
+    };
+  } catch {
+    return { patients: [], screenings: [] };
+  }
+}
+
+function saveDb(db) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+}
+
+function makeId(prefix = "id") {
+  return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now()}`;
+}
+
+const DEFAULT_RISK_FACTORS = [
+  "Smoking history",
+  "Family history of cancer",
+  "Chronic hepatitis (B/C)",
+  "Heavy alcohol use",
+  "Obesity / Diabetes",
+  "Occupational exposure (asbestos/radon)",
+];
 
 export default function Patients() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isAddOpen, setIsAddOpen] = useState(false);
-  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [db, setDb] = useState(() => loadDb());
+  const [query, setQuery] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
 
-  const [formData, setFormData] = useState({
-    first_name: '', last_name: '', dob: '', gender: '', patient_id: '', notes: ''
+  const [form, setForm] = useState({
+    firstName: "",
+    lastName: "",
+    dob: "",
+    sex: "Female",
+    email: "",
+    phone: "",
+    riskFactors: [],
+    notes: "",
   });
 
-  const { data: patients = [], isLoading } = useQuery({
-    queryKey: ['patients'],
-    queryFn: () => base44.entities.Patient.list('-created_date', 100)
-  });
+  const patients = db.patients;
 
-  const createPatient = useMutation({
-    mutationFn: (data) => base44.entities.Patient.create(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries(['patients']);
-      setIsAddOpen(false);
-      setFormData({first_name: '', last_name: '', dob: '', gender: '', patient_id: '', notes: ''});
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return patients;
+    return patients.filter((p) => {
+      const full = `${p.firstName} ${p.lastName}`.toLowerCase();
+      return (
+        full.includes(q) ||
+        (p.dob || "").toLowerCase().includes(q) ||
+        (p.email || "").toLowerCase().includes(q) ||
+        (p.phone || "").toLowerCase().includes(q)
+      );
+    });
+  }, [patients, query]);
+
+  function toggleRiskFactor(rf) {
+    setForm((prev) => {
+      const exists = prev.riskFactors.includes(rf);
+      return {
+        ...prev,
+        riskFactors: exists
+          ? prev.riskFactors.filter((x) => x !== rf)
+          : [...prev.riskFactors, rf],
+      };
+    });
+  }
+
+  function handleCreate(e) {
+    e.preventDefault();
+
+    if (!form.firstName.trim() || !form.lastName.trim()) {
+      alert("Please enter first and last name.");
+      return;
     }
-  });
 
-  const filteredPatients = patients.filter(p => 
-    p.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    p.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.patient_id?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+    const patient = {
+      id: makeId("pat"),
+      firstName: form.firstName.trim(),
+      lastName: form.lastName.trim(),
+      dob: form.dob,
+      sex: form.sex,
+      email: form.email.trim(),
+      phone: form.phone.trim(),
+      riskFactors: form.riskFactors,
+      notes: form.notes.trim(),
+      createdAt: new Date().toISOString(),
+    };
+
+    const nextDb = { ...db, patients: [patient, ...db.patients] };
+    setDb(nextDb);
+    saveDb(nextDb);
+
+    setIsCreating(false);
+    setForm({
+      firstName: "",
+      lastName: "",
+      dob: "",
+      sex: "Female",
+      email: "",
+      phone: "",
+      riskFactors: [],
+      notes: "",
+    });
+
+    navigate(`/patients/${patient.id}`);
+  }
 
   return (
-    <div className="space-y-6 flex flex-col h-full">
-      <div className="flex justify-between items-center shrink-0">
+    <div className="h-full w-full p-6">
+      <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Patients</h1>
-          <p className="text-slate-500 mt-1">Manage patient profiles and screening history.</p>
+          <h1 className="text-2xl font-semibold text-slate-900">Patients</h1>
+          <p className="text-slate-600">
+            Create patient profiles and run Viona screenings.
+          </p>
         </div>
-        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-teal-600 hover:bg-teal-700">
-              <Plus className="w-4 h-4 mr-2" /> Add Patient
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>Add New Patient</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={(e) => { e.preventDefault(); createPatient.mutate(formData); }} className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>First Name</Label>
-                  <Input required value={formData.first_name} onChange={e => setFormData({...formData, first_name: e.target.value})} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Last Name</Label>
-                  <Input required value={formData.last_name} onChange={e => setFormData({...formData, last_name: e.target.value})} />
+
+        <div className="flex items-center gap-2">
+          <button
+            className="px-4 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800"
+            onClick={() => setIsCreating((v) => !v)}
+          >
+            {isCreating ? "Close" : "Create Patient"}
+          </button>
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto mt-6">
+        <div className="flex items-center gap-3">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by name, DOB, email, phone..."
+            className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-300"
+          />
+          <Link
+            to="/screening/new"
+            className="px-4 py-2 rounded-lg border border-slate-200 hover:bg-slate-50 whitespace-nowrap"
+          >
+            New Screening
+          </Link>
+        </div>
+
+        {isCreating && (
+          <div className="mt-6 bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+            <h2 className="text-lg font-semibold text-slate-900">
+              Create Patient Profile
+            </h2>
+
+            <form onSubmit={handleCreate} className="mt-4 grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm text-slate-600">First Name *</label>
+                <input
+                  className="mt-1 w-full px-3 py-2 rounded-lg border border-slate-200"
+                  value={form.firstName}
+                  onChange={(e) => setForm((p) => ({ ...p, firstName: e.target.value }))}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm text-slate-600">Last Name *</label>
+                <input
+                  className="mt-1 w-full px-3 py-2 rounded-lg border border-slate-200"
+                  value={form.lastName}
+                  onChange={(e) => setForm((p) => ({ ...p, lastName: e.target.value }))}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm text-slate-600">Date of Birth</label>
+                <input
+                  type="date"
+                  className="mt-1 w-full px-3 py-2 rounded-lg border border-slate-200"
+                  value={form.dob}
+                  onChange={(e) => setForm((p) => ({ ...p, dob: e.target.value }))}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm text-slate-600">Sex</label>
+                <select
+                  className="mt-1 w-full px-3 py-2 rounded-lg border border-slate-200"
+                  value={form.sex}
+                  onChange={(e) => setForm((p) => ({ ...p, sex: e.target.value }))}
+                >
+                  <option>Female</option>
+                  <option>Male</option>
+                  <option>Intersex</option>
+                  <option>Prefer not to say</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-sm text-slate-600">Email</label>
+                <input
+                  type="email"
+                  className="mt-1 w-full px-3 py-2 rounded-lg border border-slate-200"
+                  value={form.email}
+                  onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm text-slate-600">Phone</label>
+                <input
+                  className="mt-1 w-full px-3 py-2 rounded-lg border border-slate-200"
+                  value={form.phone}
+                  onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
+                />
+              </div>
+
+              <div className="col-span-2">
+                <label className="text-sm text-slate-600">Risk Factors</label>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {DEFAULT_RISK_FACTORS.map((rf) => {
+                    const active = form.riskFactors.includes(rf);
+                    return (
+                      <button
+                        type="button"
+                        key={rf}
+                        onClick={() => toggleRiskFactor(rf)}
+                        className={[
+                          "px-3 py-1 rounded-full border text-sm",
+                          active
+                            ? "bg-slate-900 text-white border-slate-900"
+                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50",
+                        ].join(" ")}
+                      >
+                        {rf}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Date of Birth</Label>
-                  <Input type="date" required value={formData.dob} onChange={e => setFormData({...formData, dob: e.target.value})} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Gender</Label>
-                  <Select value={formData.gender} onValueChange={v => setFormData({...formData, gender: v})}>
-                    <SelectTrigger><SelectValue placeholder="Select gender" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="male">Male</SelectItem>
-                      <SelectItem value="female">Female</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+
+              <div className="col-span-2">
+                <label className="text-sm text-slate-600">Notes</label>
+                <textarea
+                  rows={3}
+                  className="mt-1 w-full px-3 py-2 rounded-lg border border-slate-200"
+                  value={form.notes}
+                  onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
+                />
               </div>
- 
+
+              <div className="col-span-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  className="px-4 py-2 rounded-lg border border-slate-200 hover:bg-slate-50"
+                  onClick={() => setIsCreating(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800"
+                >
+                  Save Patient
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        <div className="mt-6 bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+          <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+            <div className="font-semibold text-slate-900">Patient List</div>
+            <div className="text-sm text-slate-600">{filtered.length} patients</div>
+          </div>
+
+          <div className="divide-y divide-slate-200">
+            {filtered.length === 0 ? (
+              <div className="p-5 text-slate-600">No patients found.</div>
+            ) : (
+              filtered.map((p) => (
+                <Link
+                  key={p.id}
+                  to={`/patients/${p.id}`}
+                  className="block px-5 py-4 hover:bg-slate-50"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium text-slate-900">
+                        {p.firstName} {p.lastName}
+                      </div>
+                      <div className="text-sm text-slate-600">
+                        DOB: {p.dob || "—"} • Sex: {p.sex || "—"}
+                      </div>
+                    </div>
+                    <div className="text-sm text-slate-600">Open →</div>
+                  </div>
+                </Link>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
