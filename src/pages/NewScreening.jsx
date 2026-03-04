@@ -1,8 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
-// These imports assume your Base44 export already has them.
-// If your paths differ, tell me and I’ll adjust.
 import BreathScan from "../components/screening/BreathScan";
 import ElisaInput from "../components/screening/ElisaInput";
 import Results from "../components/screening/Results";
@@ -43,7 +41,6 @@ export default function NewScreening() {
   const query = useQuery();
 
   const [db, setDb] = useState(() => loadDb());
-
   const patients = db.patients;
 
   const [step, setStep] = useState(1);
@@ -52,9 +49,9 @@ export default function NewScreening() {
   const [operatorName, setOperatorName] = useState("Demo Operator");
   const [scenario, setScenario] = useState("Healthy");
 
-  // Breath + ELISA data is collected from child components
+  // Breath + ELISA data
   const [breathData, setBreathData] = useState(null);
-  const [elisaData, setElisaData] = useState(null);
+  const [elisaData, setElisaData] = useState({ wells: [], elisaScore: undefined, cadImageUrl: undefined }); // ✅ keep object so ElisaInput can work
 
   const selectedPatient = useMemo(
     () => patients.find((p) => p.id === patientId),
@@ -64,7 +61,8 @@ export default function NewScreening() {
   function canGoNext() {
     if (step === 1) return !!patientId && !!scenario;
     if (step === 2) return !!breathData;
-    if (step === 3) return !!elisaData;
+    // ✅ require at least 1 well selection OR an elisaScore (judge-friendly)
+    if (step === 3) return !!elisaData && (elisaData.wells?.length > 0 || elisaData.elisaScore !== undefined);
     return true;
   }
 
@@ -223,7 +221,8 @@ export default function NewScreening() {
 
           {step === 3 && (
             <ElisaInput
-              onComplete={(data) => setElisaData(data)}
+              value={elisaData}
+              onChange={(updated) => setElisaData(updated)}
             />
           )}
 

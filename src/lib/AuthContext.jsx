@@ -1,75 +1,64 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-
-/**
- * Demo AuthContext (NO Base44)
- * Provides the same fields your App.jsx expects:
- * - isLoadingAuth
- * - isLoadingPublicSettings
- * - authError
- * - navigateToLogin
- */
+import React, { createContext, useContext, useMemo, useState } from "react";
 
 const AuthContext = createContext(null);
+const AUTH_KEY = "viona_offline_auth_v1";
+
+function makeOperatorId(name) {
+  const cleaned = (name || "operator")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return `op_${cleaned || "operator"}`;
+}
+
+function loadSession() {
+  try {
+    const raw = localStorage.getItem(AUTH_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function saveSession(session) {
+  localStorage.setItem(AUTH_KEY, JSON.stringify(session));
+}
+
+function clearSession() {
+  localStorage.removeItem(AUTH_KEY);
+}
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-
-  // Keep names aligned with your existing App.jsx
-  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
-  const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(true);
-
-  // authError is always null in demo mode (no registration / login needed)
-  const [authError, setAuthError] = useState(null);
-
-  useEffect(() => {
-    // Simulate a short "loading" phase so UI looks realistic
-    const t = setTimeout(() => {
-      setUser({
-        id: "demo_user",
-        name: "Demo Operator",
-        email: "demo@viona.local",
-        role: "operator",
-      });
-
-      setIsLoadingPublicSettings(false);
-      setIsLoadingAuth(false);
-      setAuthError(null);
-    }, 250);
-
-    return () => clearTimeout(t);
-  }, []);
+  const [session, setSession] = useState(() => loadSession());
 
   const value = useMemo(() => {
     return {
-      user,
-      isAuthenticated: !!user,
+      isLoadingAuth: false,
+      isLoadingPublicSettings: false,
+      authError: null,
 
-      // match expected names
-      isLoadingAuth,
-      isLoadingPublicSettings,
-      authError,
+      isAuthenticated: !!session,
+      operator: session,
+      operatorId: session?.operatorId || null,
 
-      // Demo login redirect – does nothing
-      navigateToLogin: () => {
-        // In demo mode we don't redirect anywhere.
-        // If you later add a /login page, we can navigate there.
-        console.log("[Viona] Demo mode: navigateToLogin called (ignored).");
+      login: async ({ name, pin }) => {
+        const next = {
+          operatorId: makeOperatorId(name),
+          name: (name || "Operator").trim(),
+          pin: String(pin || "0000"),
+        };
+        setSession(next);
+        saveSession(next);
       },
 
-      // optional helpers if you want them later
-      login: async (name = "Demo Operator") => {
-        setUser({
-          id: "demo_user",
-          name,
-          email: "demo@viona.local",
-          role: "operator",
-        });
-      },
       logout: async () => {
-        setUser(null);
+        setSession(null);
+        clearSession();
       },
     };
-  }, [user, isLoadingAuth, isLoadingPublicSettings, authError]);
+  }, [session]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
