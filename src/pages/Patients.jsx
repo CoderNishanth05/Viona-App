@@ -181,13 +181,20 @@ export default function Patients() {
               </div>
 
               <div>
-                <label className="text-sm text-slate-600">Date of Birth</label>
-                <input
-                  type="date"
-                  className="mt-1 w-full px-3 py-2 rounded-lg border border-slate-200"
-                  value={form.dob}
-                  onChange={(e) => setForm((p) => ({ ...p, dob: e.target.value }))}
-                />
+                  <label className="text-sm text-slate-600">Date of Birth</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="MM/DD/YYYY"
+                    className="mt-1 w-full px-3 py-2 rounded-lg border border-slate-200"
+                    value={form.dob}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, dob: e.target.value }))
+                    }
+                  />
+                  <div className="mt-1 text-xs text-slate-500">
+                    Example: 03/04/2007
+                  </div>
               </div>
 
               <div>

@@ -7,6 +7,9 @@ import PageNotFound from "./lib/PageNotFound";
 import { AuthProvider, useAuth } from "@/lib/AuthContext";
 import Login from "@/pages/Login";
 
+import PatientDetail from "@/pages/PatientDetail";
+import ReportDetail from "@/pages/ReportDetail";
+
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
@@ -27,12 +30,15 @@ function AppRoutes() {
 
   return (
     <Routes>
+      {/* Public route */}
       <Route path="/login" element={<Login />} />
 
+      {/* If not logged in, force everything to /login */}
       {!isAuthenticated ? (
         <Route path="*" element={<Navigate to="/login" replace />} />
       ) : (
         <>
+          {/* Home */}
           <Route
             path="/"
             element={
@@ -41,6 +47,27 @@ function AppRoutes() {
               </LayoutWrapper>
             }
           />
+
+          {/* ✅ Dynamic routes MUST be declared explicitly */}
+          <Route
+            path="/patients/:id"
+            element={
+              <LayoutWrapper currentPageName="patients">
+                <PatientDetail />
+              </LayoutWrapper>
+            }
+          />
+
+          <Route
+            path="/reports/:id"
+            element={
+              <LayoutWrapper currentPageName="reports">
+                <ReportDetail />
+              </LayoutWrapper>
+            }
+          />
+
+          {/* Static pages from config */}
           {Object.entries(Pages).map(([path, Page]) => (
             <Route
               key={path}
@@ -52,6 +79,8 @@ function AppRoutes() {
               }
             />
           ))}
+
+          {/* Catch-all */}
           <Route path="*" element={<PageNotFound />} />
         </>
       )}
