@@ -21,31 +21,26 @@ function AuthedRoutes() {
   return (
     <Layout currentPageName="">
       <Routes>
-        {/* ✅ Compatibility redirects for old/capitalized routes */}
+        {/* ✅ Old routes from Base44 / UI menu */}
         <Route path="/Dashboard" element={<Navigate to="/" replace />} />
         <Route path="/Patients" element={<Navigate to="/patients" replace />} />
         <Route path="/Reports" element={<Navigate to="/reports" replace />} />
         <Route path="/NewScreening" element={<Navigate to="/screening/new" replace />} />
         <Route path="/Settings" element={<Navigate to="/settings" replace />} />
 
-        {/* ✅ Main pages */}
+        {/* ✅ Current real routes */}
         <Route path="/" element={<Dashboard />} />
 
-        {/* ✅ Patients */}
         <Route path="/patients" element={<Patients />} />
         <Route path="/patients/:id" element={<PatientDetail />} />
 
-        {/* ✅ Screening */}
         <Route path="/screening/new" element={<NewScreening />} />
 
-        {/* ✅ Reports */}
         <Route path="/reports" element={<Reports />} />
         <Route path="/reports/:id" element={<ReportDetail />} />
 
-        {/* ✅ Settings (optional) */}
         <Route path="/settings" element={<Settings />} />
 
-        {/* Catch-all */}
         <Route path="*" element={<PageNotFound />} />
       </Routes>
     </Layout>
